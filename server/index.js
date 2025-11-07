@@ -17,12 +17,29 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-    console.log("a user connected");
-    socket.on("disconnect", () => {
-        console.log("user disconnected");
+    let currentUsername = "";
+    let currentRoom = "";
+
+    socket.on("join-room", (username, room) => {
+        currentUsername = username;
+        currentRoom = room;
+        socket.join(room);
+        console.log(`${username} joined room: ${room}`);
     });
+
     socket.on("send-message", (message) => {
-        io.emit("chat-message", message);
+        console.log(`Message received: ${message}`);
+        io.to(currentRoom).emit("chat-message", {
+            message,
+            username: currentUsername,
+            date: new Date(),
+        });
+    });
+
+    socket.on("disconnect", () => {
+        console.log(
+            `User ${currentUsername} disconnected from the room ${currentRoom}`
+        );
     });
 });
 

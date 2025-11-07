@@ -15,15 +15,19 @@ const MyForm = () => {
     };
 
     return (
-        <form onSubmit={handleSubmit}>
+        <form
+            onSubmit={handleSubmit}
+            className="flex rounded bg-black text-white"
+        >
             <input
                 type="text"
                 value={value}
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     setValue(e.target.value)
                 }
+                className="p-2 outline-none w-full"
             />
-            <button type="submit" disabled={isLoading}>
+            <button type="submit" disabled={isLoading} className="p-2">
                 Submit
             </button>
         </form>

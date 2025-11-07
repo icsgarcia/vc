@@ -1,44 +1,15 @@
-import { useEffect, useState } from "react";
-import { socket } from "./socket";
-import ConnectionState from "./components/ConnectionState";
-import Events from "./components/Events";
-import ConnectionManager from "./components/ConnectionManager";
-import MyForm from "./components/MyForm";
+import { BrowserRouter, Routes, Route } from "react-router";
+import Room from "./pages/Room";
+import Home from "./pages/Home";
 
 function App() {
-    const [isConnected, setIsConnected] = useState(socket.connected);
-    const [messages, setMessages] = useState<string[]>([]);
-
-    useEffect(() => {
-        function onConnect() {
-            setIsConnected(true);
-        }
-
-        function onDisconnect() {
-            setIsConnected(false);
-        }
-
-        function onMessages(value: string) {
-            setMessages((prevMessages) => [...prevMessages, value]);
-        }
-
-        socket.on("connect", onConnect);
-        socket.on("disconnect", onDisconnect);
-        socket.on("chat-message", onMessages);
-
-        return () => {
-            socket.off("connect", onConnect);
-            socket.off("disconnect", onDisconnect);
-            socket.off("chat-message", onMessages);
-        };
-    }, []);
     return (
-        <div className="App">
-            <ConnectionState isConnected={isConnected} />
-            <Events events={messages} />
-            <ConnectionManager />
-            <MyForm />
-        </div>
+        <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="room" element={<Room />} />
+            </Routes>
+        </BrowserRouter>
     );
 }
 
