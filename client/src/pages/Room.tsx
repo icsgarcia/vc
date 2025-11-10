@@ -515,24 +515,6 @@ const Room = () => {
         return () => clearTimeout(timeoutId);
     }, [selectedVideoInput, selectedAudioInput]);
 
-    const makeCall = async () => {
-        try {
-            const peerConnection = peerConnectionRef.current;
-            if (!peerConnection) {
-                console.error("Peer connection not initialized");
-                return;
-            }
-
-            console.log("Creating offer");
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            socket.emit("offer", offer);
-            console.log("Sent offer");
-        } catch (error) {
-            console.error("Error making call:", error);
-        }
-    };
-
     const toggleCamera = async () => {
         try {
             if (isCameraOn) {
