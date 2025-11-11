@@ -116,13 +116,23 @@ const Room = () => {
                     return;
                 }
 
-                console.log("Creating offer");
+                // Wait a bit to ensure stream is added
+                await new Promise((resolve) => setTimeout(resolve, 500));
+
+                console.log(
+                    "Creating offer with",
+                    peerConnection.getSenders().length,
+                    "senders"
+                );
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
                 socket.emit("offer", offer);
                 console.log("Sent offer");
             } catch (error) {
                 console.error("Error making call:", error);
+                setError(
+                    "Failed to create call. Please refresh and try again."
+                );
             }
         };
 
@@ -199,9 +209,31 @@ const Room = () => {
         // Handle ICE candidates
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log("Sending ICE candidate");
+                console.log("Sending ICE candidate:", event.candidate.type);
                 socket.emit("ice-candidate", event.candidate);
+            } else {
+                console.log("All ICE candidates have been sent");
             }
+        };
+
+        // Monitor ICE connection state
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log(
+                "ICE connection state:",
+                peerConnection.iceConnectionState
+            );
+            if (peerConnection.iceConnectionState === "failed") {
+                console.error("ICE connection failed - trying to restart");
+                peerConnection.restartIce();
+            }
+        };
+
+        // Monitor ICE gathering state
+        peerConnection.onicegatheringstatechange = () => {
+            console.log(
+                "ICE gathering state:",
+                peerConnection.iceGatheringState
+            );
         };
 
         // Monitor connection state
@@ -284,15 +316,21 @@ const Room = () => {
             } else {
                 // Someone else is already in the room, initiate call
                 setIsInitiator(false);
-                console.log("Someone is already in the room, initiating call");
-                setTimeout(() => makeCall(), 2000); // Increased delay for stream setup
+                console.log(
+                    "Someone is already in the room, will initiate call after stream setup"
+                );
+                // Wait longer to ensure both users have their streams ready
+                setTimeout(() => makeCall(), 3000);
             }
         });
 
         // Handle when you should start the call (sent by existing user)
         socket.on("ready-to-call", () => {
-            console.log("Ready to call - initiating offer");
-            setTimeout(() => makeCall(), 2000); // Increased delay for stream setup
+            console.log(
+                "Ready to call - will initiate offer after stream setup"
+            );
+            // Wait longer to ensure stream is ready
+            setTimeout(() => makeCall(), 3000);
         });
 
         return () => {
@@ -312,29 +350,70 @@ const Room = () => {
             if (stream && peerConnectionRef.current) {
                 const peerConnection = peerConnectionRef.current;
 
+                console.log("Stream state:", {
+                    hasStream: !!stream,
+                    trackCount: stream.getTracks().length,
+                    audioTracks: stream.getAudioTracks().length,
+                    videoTracks: stream.getVideoTracks().length,
+                });
+
                 // Remove existing tracks
-                peerConnection.getSenders().forEach((sender) => {
+                const existingSenders = peerConnection.getSenders();
+                console.log(
+                    "Removing",
+                    existingSenders.length,
+                    "existing senders"
+                );
+                existingSenders.forEach((sender) => {
                     peerConnection.removeTrack(sender);
                 });
 
                 // Add new tracks
-                stream.getTracks().forEach((track) => {
-                    console.log("Adding local track:", track.kind, track.label);
+                const tracks = stream.getTracks();
+                console.log(
+                    "Adding",
+                    tracks.length,
+                    "new tracks to peer connection"
+                );
+                tracks.forEach((track) => {
+                    console.log(
+                        "Adding track:",
+                        track.kind,
+                        track.id,
+                        "enabled:",
+                        track.enabled,
+                        "readyState:",
+                        track.readyState
+                    );
                     peerConnection.addTrack(track, stream);
                 });
+
+                console.log(
+                    "Peer connection now has",
+                    peerConnection.getSenders().length,
+                    "senders"
+                );
 
                 // Renegotiate if already connected or connecting
                 if (
                     peerConnection.connectionState === "connected" ||
                     peerConnection.connectionState === "connecting"
                 ) {
-                    console.log("Renegotiating due to stream change");
+                    console.log(
+                        "Renegotiating due to stream change (state:",
+                        peerConnection.connectionState,
+                        ")"
+                    );
                     try {
                         const offer = await peerConnection.createOffer();
                         await peerConnection.setLocalDescription(offer);
                         socket.emit("offer", offer);
+                        console.log("Renegotiation offer sent");
                     } catch (error) {
                         console.error("Error renegotiating:", error);
+                        setError(
+                            "Failed to update connection. Please refresh."
+                        );
                     }
                 }
             } else if (!stream && peerConnectionRef.current) {
@@ -342,6 +421,7 @@ const Room = () => {
                 const peerConnection = peerConnectionRef.current;
                 const hadTracks = peerConnection.getSenders().length > 0;
 
+                console.log("Removing all tracks (no stream)");
                 peerConnection.getSenders().forEach((sender) => {
                     peerConnection.removeTrack(sender);
                 });
@@ -430,6 +510,8 @@ const Room = () => {
             try {
                 if (!stream && selectedAudioInput && !isCameraOn) {
                     console.log("Auto-starting audio-only for call connection");
+                    console.log("Selected audio input:", selectedAudioInput);
+
                     // Get audio-only stream for initial connection
                     const audioStream =
                         await navigator.mediaDevices.getUserMedia({
@@ -439,10 +521,22 @@ const Room = () => {
                             video: false,
                         });
 
+                    console.log("Audio stream obtained:", {
+                        id: audioStream.id,
+                        audioTracks: audioStream.getAudioTracks().length,
+                        trackStates: audioStream.getAudioTracks().map((t) => ({
+                            id: t.id,
+                            enabled: t.enabled,
+                            readyState: t.readyState,
+                        })),
+                    });
+
                     if (audioStream && videoRef.current) {
                         videoRef.current.srcObject = audioStream;
                         setStream(audioStream);
-                        console.log("Audio stream started successfully");
+                        console.log(
+                            "Audio stream started successfully and set to state"
+                        );
                         setError("");
                     }
                 }
